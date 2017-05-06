@@ -14,10 +14,11 @@ class Tweet:
 class TwitterQuery:
 	max_tweets = 10
 
-	def __init__(self, api, str_query, region_query = None):
+	def __init__(self, api, str_query, region_id, region_str):
 		self.api = api
 		self.str_query = str_query
-		self.region_query = region_query
+		self.region_id = region_id
+		self.region_str = region_str
 		self.tweet_list = []
 		
 		self.positive_tweets = []
@@ -27,7 +28,7 @@ class TwitterQuery:
 		self.get_tweets()
 	
 	def get_tweets(self):
-		dirty_tweets = self.api.search(q = f"place:{self.region_query} {self.str_query}", count = TwitterQuery.max_tweets)
+		dirty_tweets = self.api.search(q = f"place:{self.region_id} {self.str_query}", count = TwitterQuery.max_tweets)
 		
 		clean_text = self.clean_tweets(dirty_tweets)
 		
@@ -59,17 +60,29 @@ class TwitterQuery:
 	def get_num_tweets(self):
 		return len(self.tweet_list)
 	
-	def print_positive_tweets(self):
+	def get_positive_tweets(self):
+		str = ''
+		
 		for tweet in self.positive_tweets:
-			print(tweet.text)
+			str = str + (tweet.text)
+			
+		return str
 	
-	def print_neutral_tweets(self):
+	def get_neutral_tweets(self):
+		str = ''
+		
 		for tweet in self.neutral_tweets:
-			print(tweet.text)
+			str = str + (tweet.text)
+		
+		return str
 	
-	def print_negative_tweets(self):
+	def get_negative_tweets(self):
+		str = ''
+		
 		for tweet in self.negative_tweets:
-			print(tweet.text)
+			str = str + (tweet.text)
+			
+		return str
 	
 	def clean_tweets(self, dirty_tweets):
 		clean_list = []
@@ -107,6 +120,22 @@ class TwitterQuery:
 			clean_list.append(cleaned_tweet)
 		
 		return clean_list
+		
+	def __str__(self):
+		str = ''
+	
+		str = str + (f"Results for {self.region_str}\n")
+		str = str + (f"Positive Percentage: {self.get_perc_positive_tweets()}%\n")
+		str = str + (f"Negative Percentage: {self.get_perc_negative_tweets()}%\n\n")
+
+		str = str + ("Positive Tweets:\n")
+		str = str + (self.get_positive_tweets() + '\n\n')
+		str = str + ("Neutral Tweets:\n")
+		str = str + (self.get_neutral_tweets() + '\n\n')
+		str = str + ("Negative Tweets:\n")
+		str = str + (self.get_negative_tweets() + '\n\n')
+		
+		return str
 
 cfg = ConfigParser()
 
@@ -116,30 +145,21 @@ twitter_consumer_secret = cfg.get('twitter_keys', 'consumer_secret')
 twitter_access_token = cfg.get('twitter_keys', 'access_token')
 twitter_access_secret = cfg.get('twitter_keys', 'access_secret')
 
-#use this to test if your keys work
 auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
 auth.set_access_token(twitter_access_token, twitter_access_secret)
 
 api = tweepy.API(auth)
 
-"""places = api.geo_search(query='USA', granularity='country')
+places = api.geo_search(query='USA', granularity='country')
 usa_id = places[0].id
 
-usa_test = TwitterQuery(api, "Donald Trump", usa_id)
-#usa_test.get_tweets()
+str_query = input("What string would you like to search for?")
 
-print(f"Positive Percentage: {usa_test.get_perc_positive_tweets()}%")
-print(f"Negative Percentage: {usa_test.get_perc_negative_tweets()}%\n")
-
-print("Positive Tweets:\n")
-usa_test.print_positive_tweets()
-print("\nNeutral Tweets:")
-usa_test.print_neutral_tweets()
-print("\nNegative Tweets:\n")
-usa_test.print_negative_tweets()"""
+usa_test = TwitterQuery(api, str_query, usa_id, "USA")
+print(usa_test)
 
 #Let's crate a map
- 
+
 state_list = ("Alabama", "Alaska", "Arizona", "Arkansas", "California","Colorado","Connecticut","Delaware",
 "Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine",
 "Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada",
@@ -148,25 +168,12 @@ state_list = ("Alabama", "Alaska", "Arizona", "Arkansas", "California","Colorado
 "Washington","West Virginia","Wisconsin","Wyoming")
 
 state_dict = {}
-
-for state in state_list:
-	places = api.geo_search(query=state, granularity='admin')
-	state_dict[state] = places[0].id
-	
 state_queries = []
 
-for state in state_list:
-	query = TwitterQuery(api, "Donald Trump", state_dict[state])
+for state in state_list[0:2]:
+	places = api.geo_search(query=state, granularity='admin')
+	state_dict[state] = places[0].id
+	query = TwitterQuery(api, str_query, state_dict[state], state)
 	#query.get_tweets()
 	state_queries.append(query)
-	
-for state_query in state_queries:
-	print(f"Positive Percentage: {state_query.get_perc_positive_tweets()}%")
-	print(f"Negative Percentage: {state_query.get_perc_negative_tweets()}%\n")
-
-	print("Positive Tweets:\n")
-	state_query.print_positive_tweets()
-	print("\nNeutral Tweets:")
-	state_query.print_neutral_tweets()
-	print("\nNegative Tweets:\n")
-	state_query.print_negative_tweets()
+	print(query)
