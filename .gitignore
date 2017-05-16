@@ -1,1 +1,5 @@
 necessary_files/
+__pycache__/
+examples/
+old_files/
+Thumbs.db

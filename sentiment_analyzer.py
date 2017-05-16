@@ -5,6 +5,7 @@ from textblob import TextBlob
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from matplotlib.patches import Polygon
+import codecs
 
 class Tweet:
 	def __init__(self, text, mood = -1.0):
@@ -17,14 +18,13 @@ class Tweet:
 		self.mood = TextBlob(self.text).polarity
 
 class TwitterQuery:
-	max_tweets = 10
+	max_tweets = 20
 
 	def __init__(self, api, str_query, region_id, region_str):
 		self.api = api
 		self.str_query = str_query
 		self.region_id = region_id
 		self.region_str = region_str
-		#self.tweet_list = []
 		
 		self.positive_tweets = []
 		self.neutral_tweets = []
@@ -117,16 +117,6 @@ class TwitterQuery:
 		clean_list = []
 		
 		for tweet in dirty_tweets:
-			#print(tweet.__dict__.items())
-			
-			#key_list = tweet.__dict__.keys()
-			
-			#value_list = tweet.__dict__.values()
-			
-			#for i in range (0, len(key_list)):
-				#print(key_list[i] + " " + value_list[i])
-			
-
 			link_list = []
 			for link in tweet.entities['urls']:
 				link_list.append(link['url'])
@@ -167,81 +157,129 @@ class TwitterQuery:
 		
 		return str
 
-cfg = ConfigParser()
+		
+class SentimentAnalyzer:
+	state_list = ("Alabama", "Alaska", "Arizona", "Arkansas", "California","Colorado","Connecticut","Delaware",
+		"Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine",
+		"Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada",
+		"New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon",
+		"Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia",
+		"Washington","West Virginia","Wisconsin","Wyoming")
+		
+	def __init__(self, str_query):
+		self.str_query = str_query
 
-cfg.read(os.path.join('necessary_files', 'twitter.ini'))
-twitter_consumer_key = cfg.get('twitter_keys', 'consumer_key')
-twitter_consumer_secret = cfg.get('twitter_keys', 'consumer_secret')
-twitter_access_token = cfg.get('twitter_keys', 'access_token')
-twitter_access_secret = cfg.get('twitter_keys', 'access_secret')
+		self.twitter_keys = self.read_config_file()
+		
+		self.api = self.connect_to_api()
+		self.usa_id = self.get_usa_id()
+		
+		self.console_file = codecs.open("console.txt",'w','utf-8')
+		
+		self.state_queries = []
+		self.state_ids = self.get_state_ids()
+		self.get_state_queries()
+		
+		self.console_file.close()
+		self.create_us_map()
+		
+	def read_config_file(self):
+		cfg = ConfigParser()
 
-auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_secret)
-auth.set_access_token(twitter_access_token, twitter_access_secret)
+		cfg.read(os.path.join('necessary_files', 'twitter.ini'))
+		twitter_consumer_key = cfg.get('twitter_keys', 'consumer_key')
+		twitter_consumer_secret = cfg.get('twitter_keys', 'consumer_secret')
+		twitter_access_token = cfg.get('twitter_keys', 'access_token')
+		twitter_access_secret = cfg.get('twitter_keys', 'access_secret')
+		
+		return {'twitter_consumer_key' : twitter_consumer_key, 'twitter_consumer_secret': twitter_consumer_secret, 'twitter_access_token': twitter_access_token, 'twitter_access_secret' : twitter_access_secret}
+		
+	def connect_to_api(self):
+		auth = tweepy.OAuthHandler(self.twitter_keys['twitter_consumer_key'], self.twitter_keys['twitter_consumer_secret'])
+		auth.set_access_token(self.twitter_keys['twitter_access_token'], self.twitter_keys['twitter_access_secret'])
 
-api = tweepy.API(auth)
+		return tweepy.API(auth)
+	
+	def get_usa_id(self):
+		places = self.api.geo_search(query='USA', granularity='country')
+		return places[0].id
+	
+	def get_usa_query(self):
+		usa_query = TwitterQuery(api, str_query, usa_id, "USA")
+		print(usa_query)
+		console_file.write(str(usa_test))
+	
+	def get_state_ids(self):
+		try:
+			state_ids = []
+			geo_file = open(os.path.join('necessary_files', 'geo.txt'), 'r')
+			for line in geo_file:
+				state_ids.append(line.split()[-1])
 
-places = api.geo_search(query='USA', granularity='country')
-usa_id = places[0].id
+			geo_file.close()
+			
+			return state_ids
+		except FileNotFoundError as fe:
+			print("geo.txt not found in necessary_files. Please run geo.py before running this program.")
+			return
+		except ex:
+			print("Error:", ex)
+	
+	def get_state_queries(self):
+		i = 0	
+		print(len(self.state_ids))
+		for state in self.state_list:
+			query = TwitterQuery(self.api, self.str_query, self.state_ids[i], state)
+			self.state_queries.append(query)
+			print(query)
+			self.console_file.write(str(query))
+			i += 1
+			
+	def create_us_map(self):
+		#Let's create a map	
+		bmap = Basemap(llcrnrlon=-119,llcrnrlat=22,urcrnrlon=-64,urcrnrlat=49,
+				  projection='lcc',lat_1=33,lat_2=45,lon_0=-95)
 
-str_query = input("What string would you like to search for? ")
+		shapefile_loc = os.path.join('necessary_files', 'st99_d00')		  
+				  
+		# load the shapefile, use the name 'states'
+		bmap.readshapefile(shapefile_loc, name='states', drawbounds=True)
 
-"""usa_test = TwitterQuery(api, str_query, usa_id, "USA")
-print(usa_test)"""
 
-state_list = ("Alabama", "Alaska", "Arizona", "Arkansas", "California","Colorado","Connecticut","Delaware",
-"Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine",
-"Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada",
-"New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon"
-"Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia",
-"Washington","West Virginia","Wisconsin","Wyoming")
+		# collect the state names from the shapefile attributes so we can
+		# look up the shape obect for a state by it's name
+		state_names = []
+		for shape_dict in bmap.states_info:
+			 state_names.append(shape_dict['NAME'])
 
-state_dict = {}
-state_queries = []
+		ax = plt.gca() # get current axes instance
+		#print(ax.get_xlim())
+		#print(ax.get_ylim())
+		ax.set_xlim([-4000000, 4777416.6])
+		ax.set_ylim([0, 6000000])
 
-for state in state_list[0:5]:
-	places = api.geo_search(query=state, granularity='admin')
-	state_dict[state] = places[0].id
-	query = TwitterQuery(api, str_query, state_dict[state], state)
-	#query.get_tweets()
-	state_queries.append(query)
-	print(query)
+		# get Texas and draw the filled polygon
+		#seg = map.states[state_names.index('Texas')]
+		#poly = Polygon(seg, facecolor='red',edgecolor='red')
+		#ax.add_patch(poly)
 
-#Let's create a map	
-map = Basemap(llcrnrlon=-119,llcrnrlat=22,urcrnrlon=-64,urcrnrlat=49,
-        projection='lcc',lat_1=33,lat_2=45,lon_0=-95)
+		for state_query in self.state_queries:
+			if (state_query.get_max_sentiment() == 'positive'):
+				seg = bmap.states[state_names.index(state_query.region_str)]
+				poly = Polygon(seg, facecolor='red',edgecolor='red')
+				ax.add_patch(poly)
+			elif (state_query.get_max_sentiment() == 'neutral'):
+				seg = bmap.states[state_names.index(state_query.region_str)]
+				poly = Polygon(seg, facecolor='gray',edgecolor='gray')
+				ax.add_patch(poly)
+			elif state_query.get_max_sentiment() == 'negative':
+				seg = bmap.states[state_names.index(state_query.region_str)]
+				poly = Polygon(seg, facecolor='blue',edgecolor='blue')
+				ax.add_patch(poly)
+			else:
+				pass
 
-shapefile_loc = os.path.join('necessary_files', 'st99_d00')		  
-		  
-# load the shapefile, use the name 'states'
-map.readshapefile(shapefile_loc, name='states', drawbounds=True)
+		#console_file.close()
+		plt.tight_layout()
+		plt.show()
 
-# collect the state names from the shapefile attributes so we can
-# look up the shape obect for a state by it's name
-state_names = []
-for shape_dict in map.states_info:
-    state_names.append(shape_dict['NAME'])
-
-ax = plt.gca() # get current axes instance
-
-# get Texas and draw the filled polygon
-#seg = map.states[state_names.index('Texas')]
-#poly = Polygon(seg, facecolor='red',edgecolor='red')
-#ax.add_patch(poly)
-
-for state_query in state_queries:
-	if (state_query.get_max_sentiment() == 'positive'):
-		seg = map.states[state_names.index(state_query.region_str)]
-		poly = Polygon(seg, facecolor='red',edgecolor='red')
-		ax.add_patch(poly)
-	elif (state_query.get_max_sentiment() == 'neutral'):
-		seg = map.states[state_names.index(state_query.region_str)]
-		poly = Polygon(seg, facecolor='gray',edgecolor='gray')
-		ax.add_patch(poly)
-	elif state_query.get_max_sentiment() == 'negative':
-		seg = map.states[state_names.index(state_query.region_str)]
-		poly = Polygon(seg, facecolor='blue',edgecolor='blue')
-		ax.add_patch(poly)
-	else:
-		pass
-
-plt.show()
